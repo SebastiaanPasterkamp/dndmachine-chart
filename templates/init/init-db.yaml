@@ -1,0 +1,50 @@
+{{- if .Values.persistentVolume.enabled -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "{{ include "dndmachine.fullname" . }}-init-db"
+  labels:
+    {{- include "dndmachine.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  template:
+    metadata:
+      name: "{{ .Release.Name }}"
+      labels:
+        {{- include "dndmachine.labels" . | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: init-db
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            {{- tpl (.Files.Get "partials/env.yaml") . | nindent 12 }}
+          args:
+            - storage
+            - upgrade
+          volumeMounts:
+            - name: config
+              mountPath: /etc/dndmachine
+            {{- if .Values.persistentVolume.enabled }}
+            - name: database
+              mountPath: "/database"
+            {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "dndmachine.fullname" . }}
+        {{- if .Values.persistentVolume.enabled }}
+        - name: database
+          persistentVolumeClaim:
+            {{- if .Values.persistentVolume.existingClaim }}
+            claimName: {{ .Values.persistentVolume.existingClaim }}
+            {{- else }}
+            claimName: {{ include "dndmachine.fullname" . }}
+            {{- end }}
+        {{- end }}
+{{- end }}

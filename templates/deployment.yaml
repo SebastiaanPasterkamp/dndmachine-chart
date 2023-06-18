@@ -1,0 +1,140 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dndmachine.fullname" . }}
+  labels:
+    {{- include "dndmachine.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "dndmachine.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "dndmachine.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "dndmachine.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if and (eq .Values.database.type "sqlite") (not .Values.persistentVolume.enabled) }}
+      initContainers:
+        - name: init-db
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            {{- tpl (.Files.Get "partials/env.yaml") . | nindent 12 }}
+          args:
+            - storage
+            - upgrade
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/dndmachine
+              readOnly: true
+            - name: database
+              mountPath: "/database"
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - serve
+          env:
+            {{- tpl (.Files.Get "partials/env.yaml") . | nindent 12 }}
+            {{- if .Values.cache.enabled }}
+            - name: DNDMACHINE_REDIS_ADDRESS
+              {{- if .Values.cache.address }}
+              value: {{ .Values.cache.address }}
+              {{- else }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.cache.secret }}
+                  key: {{ .Values.cache.addressKey }}
+              {{- end }}
+            - name: DNDMACHINE_REDIS_PASSWORD
+              {{- if .Values.cache.password }}
+              value: {{ .Values.cache.password }}
+              {{- else }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.cache.secret }}
+                  key: {{ .Values.cache.passwordKey }}
+              {{- end }}
+            - name: DNDMACHINE_REDIS_DATABASE
+              {{- if .Values.cache.database }}
+              value: {{ .Values.cache.database }}
+              {{- else }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.cache.secret }}
+                  key: {{ .Values.cache.databaseKey }}
+              {{- end }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/dndmachine
+              readOnly: true
+            {{- if eq .Values.database.type "sqlite" }}
+            - name: database
+              mountPath: "/database"
+            {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "dndmachine.fullname" . }}
+        {{- if .Values.persistentVolume.enabled }}
+        - name: database
+          persistentVolumeClaim:
+            {{- if .Values.persistentVolume.existingClaim }}
+            claimName: {{ .Values.persistentVolume.existingClaim }}
+            {{- else }}
+            claimName: {{ include "dndmachine.fullname" . }}
+            {{- end }}
+        {{- else if (eq .Values.database.type "sqlite") }}
+        - name: database
+          emptyDir:
+            medium: Memory
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

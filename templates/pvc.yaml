@@ -1,0 +1,35 @@
+{{- if .Values.persistentVolume.enabled -}}
+{{- if ne .Values.database.type "sqlite" }}
+  {{- fail "Using the persistent volume without the sqlite database type has no effect." }}
+{{- end }}
+{{- if not .Values.persistentVolume.existingClaim -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-delete-policy": before-hook-creation
+    {{- toYaml .Values.persistentVolume.annotations | indent 4 }}
+  labels:
+    {{- include "dndmachine.labels" . | nindent 4 }}
+  name: {{ include "dndmachine.fullname" . }}
+spec:
+  {{- with .Values.persistentVolume.accessModes }}
+  accessModes:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- if .Values.persistentVolume.storageClass }}
+    {{- if (eq "-" .Values.persistentVolume.storageClass) }}
+  storageClassName: ""
+    {{- else }}
+  storageClassName: "{{ .Values.persistentVolume.storageClass }}"
+    {{- end }}
+  {{- end }}
+  {{- if .Values.persistentVolume.volumeMode }}
+  volumeMode: "{{ .Values.persistentVolume.volumeMode }}"
+  {{- end }}
+  resources:
+    requests:
+      storage: "{{ .Values.persistentVolume.size }}"
+{{- end -}}
+{{- end -}}

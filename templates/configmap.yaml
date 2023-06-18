@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "dndmachine.fullname" . }}
+  labels:
+    {{- include "dndmachine.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-delete-policy": before-hook-creation
+data:
+  config.json: |
+    {{- toPrettyJson .Values.server | nindent 4 }}
