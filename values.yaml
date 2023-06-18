@@ -57,13 +57,42 @@ cache:
   secret: dndmachine-redis
   # The address of the redis cache service.
   addressKey: address
-  address: # HOST:PORT
+  address: # ...-redis-master:6379
   # The redis password to use.
   passwordKey: password
   password: # insecure
   # The redis database to use.
   databaseKey: database
-  database: 0
+  database: # 0
+
+# Built in Redis cache backend
+redis:
+  enabled: false
+  global:
+    imageRegistry: "docker.io"
+    storageClass: ""
+  image:
+    repository: redis
+  auth:
+    enabled: true
+    existingSecret: dndmachine-redis
+    existingSecretPasswordKey: "password"
+  architecture: replication
+  master:
+    persistence:
+      enabled: true
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 1Gi
+  replica:
+    replicaCount: 2
+    persistence:
+      enabled: true
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 1Gi
 
 server:
   # The maximum duration of a request.

@@ -61,7 +61,7 @@ spec:
             {{- if .Values.cache.enabled }}
             - name: DNDMACHINE_REDIS_ADDRESS
               {{- if .Values.cache.address }}
-              value: {{ .Values.cache.address }}
+              value: {{ .Values.cache.address | quote }}
               {{- else }}
               valueFrom:
                 secretKeyRef:
@@ -70,7 +70,7 @@ spec:
               {{- end }}
             - name: DNDMACHINE_REDIS_PASSWORD
               {{- if .Values.cache.password }}
-              value: {{ .Values.cache.password }}
+              value: {{ .Values.cache.password | quote }}
               {{- else }}
               valueFrom:
                 secretKeyRef:
@@ -78,8 +78,8 @@ spec:
                   key: {{ .Values.cache.passwordKey }}
               {{- end }}
             - name: DNDMACHINE_REDIS_DATABASE
-              {{- if .Values.cache.database }}
-              value: {{ .Values.cache.database }}
+              {{- if ne .Values.cache.database "" }}
+              value: {{ .Values.cache.database | quote }}
               {{- else }}
               valueFrom:
                 secretKeyRef:
